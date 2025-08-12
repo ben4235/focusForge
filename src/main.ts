@@ -8,12 +8,27 @@ import { loadSave, save, hardReset, SaveData } from './save/Storage';
 import { ShopUI } from './ui/shop';
 import { FixedTimestep, nowMs } from './util/time';
 
+// Haptics helper (safe no-op where unsupported)
+function buzz(ms=10){ try{ (navigator as any).vibrate?.(ms); }catch{} }
+
 const canvas = document.getElementById('game') as HTMLCanvasElement;
+
+// Responsive canvas sizing for phones
+function resizeCanvas() {
+  const cssW = Math.min(canvas.parentElement!.clientWidth, 420);
+  const cssH = Math.min(Math.round(cssW * 1.6), Math.round(window.innerHeight * 0.7));
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width  = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+}
+window.addEventListener('resize', resizeCanvas, { passive: true });
+resizeCanvas();
+
 const game = new Game(canvas);
 let last = nowMs();
-// Run the Pomodoro tick once per REAL second.
-const rafLoop = new FixedTimestep(1);
-
+const rafLoop = new FixedTimestep(1); // tick Pomodoro once per second
 
 const audio = new AudioGate();
 const fsm = new PomodoroFSM();
@@ -76,9 +91,9 @@ shop.bind(()=>points, (n)=>{
 });
 
 // UI bindings
-$('#startBtn')?.addEventListener('click', ()=> fsm.start());
-$('#pauseBtn')?.addEventListener('click', ()=> fsm.pause());
-$('#resetBtn')?.addEventListener('click', ()=> fsm.reset());
+$('#startBtn')?.addEventListener('click', ()=> { fsm.start(); buzz(10); });
+$('#pauseBtn')?.addEventListener('click', ()=> { fsm.pause(); buzz(10); });
+$('#resetBtn')?.addEventListener('click', ()=> { fsm.reset(); buzz(5); });
 $('#enableSoundBtn')?.addEventListener('click', async ()=>{ await audio.unlock(); await audio.loadChime(); });
 $('#testChimeBtn')?.addEventListener('click', ()=> audio.playChime());
 $('#hardResetBtn')?.addEventListener('click', ()=>{
@@ -107,8 +122,12 @@ fsm.onTick = (left)=>{
 fsm.onTransition = (to)=>{
   setText('stateChip', to);
   setText('modePill', to);
-  // Gate game updates on pause
+
+  // Pause gate & intensity: calm during Focus, lively otherwise
   game.paused = (to==='Paused');
+  if (to === 'Focus') game.setIntensity('calm');
+  else game.setIntensity('active');
+
   // Shop visibility rules
   if(to==='Break'){
     shop.open(points);
@@ -127,6 +146,7 @@ fsm.onFocusComplete = ()=>{
   points += award;
   setText('gritBadge', `Points: ${points}`);
   audio.playChime();
+  buzz(20);
 };
 
 function updateHUD(){
@@ -145,33 +165,22 @@ function frame(){
   lastT = t;
 
   // Fixed-step update/draw
-  game.loop.step(dt, (fixed)=>{
-    game.update(fixed);
-  });
-  if(!(document.getElementById('reducedMotion') as HTMLInputElement).checked){
-    game.draw();
-  }else{
-    // still draw occasionally for visual state
-    game.draw();
-  }
+  game.loop.step(dt, (fixed)=>{ game.update(fixed); });
+  game.draw();
 
   // Tick timer at 1-second resolution
-  rafLoop.step(dt, ()=>{
-    if(fsm.state==='Focus' || fsm.state==='Break'){
-      fsm.tick(1);
-    }
-  });
+  rafLoop.step(dt, ()=>{ if(fsm.state==='Focus' || fsm.state==='Break'){ fsm.tick(1); } });
 
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-if ('serviceWorker' in navigator) {
+// PWA SW (Pages-safe path)
+if('serviceWorker' in navigator){
   navigator.serviceWorker
     .register(new URL('sw.js', import.meta.env.BASE_URL))
-    .catch(() => {});
+    .catch(()=>{});
 }
-
 
 // Touch input: drag to move player horizontally
 canvas.addEventListener('pointerdown', onDrag);
@@ -181,18 +190,3 @@ function onDrag(e: PointerEvent){
   const x = (e.clientX - rect.left) * (canvas.width/rect.width);
   game.state.player.x = Math.max(12, Math.min(canvas.width-12, x));
 }
-
-function resizeCanvas() {
-  // 9:16 style aspect, clamped to viewport height
-  const cssW = Math.min(canvas.parentElement!.clientWidth, 420);
-  const cssH = Math.min(Math.round(cssW * 1.6), Math.round(window.innerHeight * 0.7));
-  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  canvas.width  = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-}
-window.addEventListener('resize', resizeCanvas, { passive: true });
-resizeCanvas();
-
-
