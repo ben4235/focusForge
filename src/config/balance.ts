@@ -1,27 +1,27 @@
 export const Balance = {
-  // Points
-  basePointsPer25: 50,          // nerfed default
-  streakBonusPct: 0.10,         // +10% per streak step
-  longSessionScalarPer5Min: 0.20, // +20% per extra 5 minutes of focus
-  allowShopWhilePaused: false,  // change to true if you want shop during pause
-  rerollBaseCost: 10,
-  rerollCostScale: 1.5,
+  // Points (nerfed for saner pacing)
+  basePointsPer25: 35,            // was 50
+  streakBonusPct: 0.05,           // was 0.10
+  longSessionScalarPer5Min: 0.10, // was 0.20
+  allowShopWhilePaused: false,    // set true if you want shop in Pause
+  rerollBaseCost: 12,
+  rerollCostScale: 1.35,
 
-  // Enemy/Combat
+  // Enemy/Combat (smoother early game)
   enemy: {
-    baseSpawnInterval: 2.0,   // seconds
-    minSpawnInterval: 0.5,
-    spawnAccelPerMin: 0.15,   // decreases interval over time
+    baseSpawnInterval: 2.6,   // was 2.0
+    minSpawnInterval: 0.8,    // was 0.5
+    spawnAccelPerMin: 0.10,   // was 0.15
     baseHP: 8,
-    hpGrowthPerMin: 2,
-    speed: 28                 // px/sec
+    hpGrowthPerMin: 1.5,      // was 2
+    speed: 28
   },
   player: {
     maxHP: 100,
     reload: 0.6,
     bulletDamage: 2,
     bulletsPerShot: 1,
-    spreadRadians: 0.1,
-    attackSpeed: 1.0 // multiplier
+    spreadRadians: 0.10,
+    attackSpeed: 1.0
   }
-} as const
+} as const;
