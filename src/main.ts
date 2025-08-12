@@ -194,16 +194,5 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas, { passive: true });
 resizeCanvas();
-function resizeCanvas() {
-  // 9:16 style aspect, clamped to viewport height
-  const cssW = Math.min(canvas.parentElement!.clientWidth, 420);
-  const cssH = Math.min(Math.round(cssW * 1.6), Math.round(window.innerHeight * 0.7));
-  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  canvas.width  = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-}
-window.addEventListener('resize', resizeCanvas, { passive: true });
-resizeCanvas();
+
 
