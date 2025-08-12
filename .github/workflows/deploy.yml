@@ -3,25 +3,44 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ main ]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-          - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: echo "REPO=${{ github.event.repository.name }}" >> $GITHUB_ENV
-      - run: npm ci
-      - run: npm run build
+
+      # Expose repo name so Vite can compute the correct base path
+      - name: Set env for Vite base
+        run: echo "REPO=${{ github.event.repository.name }}" >> $GITHUB_ENV
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build site
+        run: npm run build
         env:
-          GITHUB_PAGES: 'true'
+          GITHUB_PAGES: 'true'   # lets vite.config.ts know it's a Pages build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
