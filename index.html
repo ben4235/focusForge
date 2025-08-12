@@ -47,10 +47,14 @@
           <input id="breakMins" type="number" min="1" max="60" value="5" />
           min
         </label>
-        <label class="toggle">
-          <input id="reducedMotion" type="checkbox">
-          <span>Reduced motion (less shake/VFX)</span>
-        </label>
+<label title="During Focus: slows spawns, lowers animation, disables screen shake.">
+  <input id="reducedMotion" type="checkbox" aria-describedby="rmHelp" />
+  Reduced motion
+</label>
+<small id="rmHelp" style="opacity:.7; display:block; margin-top:2px;">
+  Calmer visuals during Focus (less motion & VFX).
+</small>
+
       </div>
       <div id="soundGate" class="sound-gate">
         <p>Enable chime?</p>
