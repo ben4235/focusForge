@@ -24,17 +24,17 @@ jobs:
         with:
           node-version: '20'
 
-      # Expose repo name so Vite can compute the correct base path
+      # Let Vite know the repo name to compute the correct base path
       - name: Set env for Vite base
         run: echo "REPO=${{ github.event.repository.name }}" >> $GITHUB_ENV
 
       - name: Install deps
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build site
         run: npm run build
         env:
-          GITHUB_PAGES: 'true'   # lets vite.config.ts know it's a Pages build
+          GITHUB_PAGES: 'true'   # used by vite.config.ts
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
