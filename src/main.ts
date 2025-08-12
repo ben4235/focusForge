@@ -11,7 +11,9 @@ import { FixedTimestep, nowMs } from './util/time';
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game(canvas);
 let last = nowMs();
-const rafLoop = new FixedTimestep(1/60);
+// Run the Pomodoro tick once per REAL second.
+const rafLoop = new FixedTimestep(1);
+
 
 const audio = new AudioGate();
 const fsm = new PomodoroFSM();
