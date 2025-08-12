@@ -27,6 +27,14 @@ export class Game {
   paused = false;
   reducedMotion = false;
 
+  // Feedback
+  private flash = 0; // 0..1 flash on hit
+
+  // Intensity multipliers: damped in Focus for calmer visuals
+  private speedMul = 1;
+  private spawnMul = 1;
+  private fireMul  = 1;
+
   constructor(private canvas: HTMLCanvasElement){
     const ctx = canvas.getContext('2d')!;
     this.ctx = ctx;
@@ -50,14 +58,14 @@ export class Game {
     };
   }
 
-  applyUpgrade(fn:(s:GameState)=>void){
-    fn(this.state);
+  setIntensity(mode: 'calm'|'active'){
+    if (mode === 'calm'){ this.speedMul = 0.6; this.spawnMul = 0.55; this.fireMul = 0.7; }
+    else { this.speedMul = 1; this.spawnMul = 1; this.fireMul = 1; }
   }
 
+  applyUpgrade(fn:(s:GameState)=>void){ fn(this.state); }
   setReducedMotion(v:boolean){ this.reducedMotion = v; }
-
   spendPlayerHP(d:number){ this.state.player.hp = Math.max(0, this.state.player.hp - d); }
-
   get playerHP(){ return this.state.player.hp; }
   get playerMax(){ return this.state.player.maxHP; }
 
@@ -66,10 +74,11 @@ export class Game {
 
     const s = this.state;
     s.timeAlive += dt;
-    // Spawn logic scaling
+
+    // Spawn logic scaling (affected by intensity)
     s.spawnInterval = Math.max(
       Balance.enemy.minSpawnInterval,
-      Balance.enemy.baseSpawnInterval - (s.timeAlive/60)*Balance.enemy.spawnAccelPerMin
+      (Balance.enemy.baseSpawnInterval - (s.timeAlive/60)*Balance.enemy.spawnAccelPerMin) / this.spawnMul
     );
 
     s.spawnTimer -= dt;
@@ -80,8 +89,8 @@ export class Game {
       s.enemies.push(makeEnemy(x, -20, eHP));
     }
 
-    // Auto fire
-    s.player.reloadTimer -= dt * s.player.attackSpeed;
+    // Auto fire (affected by intensity)
+    s.player.reloadTimer -= dt * s.player.attackSpeed * this.fireMul;
     if(s.player.reloadTimer <= 0){
       s.player.reloadTimer += s.player.reload;
       // shoot towards nearest enemy or straight up
@@ -99,11 +108,13 @@ export class Game {
       }
     }
 
-    // Step enemies
+    // Step enemies (affected by intensity)
     for(const e of s.enemies){
-      stepEnemy(e, dt, s.player.x, s.player.y, Balance.enemy.speed);
+      stepEnemy(e, dt, s.player.x, s.player.y, Balance.enemy.speed * this.speedMul);
       if(collide(e, {x:s.player.x, y:s.player.y, hp:s.player.hp})){
+        const before = s.player.hp;
         s.player.hp = Math.max(0, s.player.hp - 5*dt);
+        if (s.player.hp < before) this.flash = 1; // got hit
       }
     }
 
@@ -123,12 +134,29 @@ export class Game {
     // Cleanup
     s.enemies = s.enemies.filter(e=> e.hp>0 && e.y < this.ctx.canvas.height + 40);
     s.bullets = s.bullets.filter(b=> b.life>0 && b.y>-40 && b.y<this.ctx.canvas.height+40);
+
+    // decay flash
+    this.flash = Math.max(0, this.flash - dt * 2.5);
   }
 
   draw(){
     const ctx = this.ctx;
     const w = ctx.canvas.width, h = ctx.canvas.height;
     ctx.clearRect(0,0,w,h);
+
+    // Dim the scene slightly when in calm intensity (Focus)
+    if (this.fireMul < 1 || this.spawnMul < 1 || this.speedMul < 1) {
+      ctx.globalAlpha = 0.9;
+    } else {
+      ctx.globalAlpha = 1;
+    }
+
+    // subtle shake on hit (skip if reduced motion)
+    if (this.flash > 0 && !this.reducedMotion) {
+      const mag = 2 * this.flash; // px
+      ctx.save();
+      ctx.translate((Math.random()-0.5)*mag, (Math.random()-0.5)*mag);
+    }
 
     // player
     ctx.beginPath();
@@ -151,5 +179,15 @@ export class Game {
       ctx.rect(b.x-2, b.y-6, 4, 12);
       ctx.fill();
     }
+
+    if (this.flash > 0 && !this.reducedMotion) ctx.restore();
+
+    // flash overlay
+    if (this.flash > 0){
+      ctx.fillStyle = `rgba(255,80,80,${0.18 * this.flash})`;
+      ctx.fillRect(0,0,w,h);
+    }
+
+    ctx.globalAlpha = 1;
   }
 }
