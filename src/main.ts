@@ -165,7 +165,7 @@ requestAnimationFrame(frame);
 
 // PWA SW
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  navigator.serviceWorker.register(new URL('sw.js', import.meta.env.BASE_URL)).catch(()=>{});
 }
 
 // Touch input: drag to move player horizontally
