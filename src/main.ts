@@ -7,16 +7,20 @@ import { AudioGate } from './audio/Audio';
 import { loadSave, save, hardReset, SaveData } from './save/Storage';
 import { ShopUI } from './ui/shop';
 import { FixedTimestep, nowMs } from './util/time';
+import { TriviaFacts } from './config/trivia';
 
-// Haptics helper (safe no-op where unsupported)
-function buzz(ms=10){ try{ (navigator as any).vibrate?.(ms); }catch{} }
+// -----------------------------
+// Small helpers
+// -----------------------------
+function buzz(ms = 10) { try { (navigator as any).vibrate?.(ms); } catch {} }
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 
-// Responsive canvas sizing for phones
+// Responsive canvas sizing for phones (no scroll)
 function resizeCanvas() {
   const cssW = Math.min(canvas.parentElement!.clientWidth, 420);
-  const cssH = Math.min(Math.round(cssW * 1.6), Math.round(window.innerHeight * 0.7));
+  // Keep a tall-phone aspect without pushing the HUD offscreen
+  const cssH = Math.min(Math.round(cssW * 1.6), Math.round(window.innerHeight * 0.70));
   const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   canvas.style.width  = cssW + 'px';
   canvas.style.height = cssH + 'px';
@@ -26,18 +30,70 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas, { passive: true });
 resizeCanvas();
 
+// -----------------------------
+// Core systems
+// -----------------------------
 const game = new Game(canvas);
-let last = nowMs();
-const rafLoop = new FixedTimestep(1); // tick Pomodoro once per second
-
 const audio = new AudioGate();
 const fsm = new PomodoroFSM();
+
+// Tick Pomodoro exactly once per second
+const rafLoop = new FixedTimestep(1);
 
 // State & Save
 let points = 0;
 let gold = 0;
 
-function persist(){
+// -----------------------------
+// Trivia (shown on Breaks)
+// -----------------------------
+const FACTS_KEY = 'ff-facts-unlocked';
+let seenFacts = new Set<number>();
+
+function loadFacts() {
+  try {
+    const raw = localStorage.getItem(FACTS_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) seenFacts = new Set(arr);
+  } catch {}
+}
+function saveFacts() {
+  try {
+    localStorage.setItem(FACTS_KEY, JSON.stringify(Array.from(seenFacts)));
+  } catch {}
+}
+function showRandomFact() {
+  const box = document.getElementById('triviaBox') as HTMLElement | null;
+  const text = document.getElementById('triviaText') as HTMLElement | null;
+  if (!box || !text) return;
+
+  // Prefer unseen
+  let candidates: number[] = [];
+  for (let i = 0; i < TriviaFacts.length; i++) {
+    if (!seenFacts.has(i)) candidates.push(i);
+  }
+  if (candidates.length === 0) {
+    candidates = [...TriviaFacts.keys()];
+    seenFacts.clear();
+  }
+  const idx = candidates[Math.floor(Math.random() * candidates.length)];
+  seenFacts.add(idx);
+  saveFacts();
+
+  text.textContent = TriviaFacts[idx];
+  box.hidden = false;
+}
+function hideTrivia() {
+  const box = document.getElementById('triviaBox') as HTMLElement | null;
+  if (box) box.hidden = true;
+}
+loadFacts();
+
+// -----------------------------
+// Persistence
+// -----------------------------
+function persist() {
   const data: SaveData = {
     points, gold, streak: fsm.streak,
     player: {
@@ -57,10 +113,11 @@ function persist(){
   save(data);
 }
 
-function restore(){
+function restore() {
   const s = loadSave();
-  if(!s) return;
+  if (!s) return;
   points = s.points; gold = s.gold; fsm.streak = s.streak;
+
   game.state.player.maxHP = s.player.maxHP;
   game.state.player.hp = s.player.maxHP;
   game.state.player.bulletDamage = s.player.bulletDamage;
@@ -68,125 +125,164 @@ function restore(){
   game.state.player.bulletsPerShot = s.player.bulletsPerShot;
   game.state.player.spreadRadians = s.player.spreadRadians;
   game.state.player.attackSpeed = s.player.attackSpeed;
+
   (document.getElementById('reducedMotion') as HTMLInputElement).checked = s.settings.reducedMotion;
   (document.getElementById('focusMins') as HTMLInputElement).value = String(s.settings.focusMins);
   (document.getElementById('breakMins') as HTMLInputElement).value = String(s.settings.breakMins);
+
   fsm.setDurations(s.settings.focusMins, s.settings.breakMins);
   game.setReducedMotion(s.settings.reducedMotion);
 }
 restore();
+window.addEventListener('beforeunload', persist);
 
-const shop = new ShopUI((u)=>{
-  if(points >= u.cost){
+// -----------------------------
+// Shop
+// -----------------------------
+const shop = new ShopUI((u) => {
+  if (points >= u.cost) {
     points -= u.cost;
-    game.applyUpgrade((state:any)=>u.apply(state));
+    game.applyUpgrade((state: any) => u.apply(state));
     shop.close();
     persist();
     updateHUD();
   }
 });
-shop.bind(()=>points, (n)=>{
-  if(points>=n){ points -= n; persist(); updateHUD(); return true; }
+shop.bind(() => points, (n) => {
+  if (points >= n) { points -= n; persist(); updateHUD(); return true; }
   return false;
 });
 
+// -----------------------------
 // UI bindings
-$('#startBtn')?.addEventListener('click', ()=> { fsm.start(); buzz(10); });
-$('#pauseBtn')?.addEventListener('click', ()=> { fsm.pause(); buzz(10); });
-$('#resetBtn')?.addEventListener('click', ()=> { fsm.reset(); buzz(5); });
-$('#enableSoundBtn')?.addEventListener('click', async ()=>{ await audio.unlock(); await audio.loadChime(); });
-$('#testChimeBtn')?.addEventListener('click', ()=> audio.playChime());
-$('#hardResetBtn')?.addEventListener('click', ()=>{
-  if(confirm('Wipe all progress?')){ hardReset(); location.reload(); }
+// -----------------------------
+$('#startBtn')?.addEventListener('click', () => { fsm.start(); buzz(10); });
+$('#pauseBtn')?.addEventListener('click', () => { fsm.pause(); buzz(10); });
+$('#resetBtn')?.addEventListener('click', () => { fsm.reset(); buzz(5); });
+
+$('#enableSoundBtn')?.addEventListener('click', async () => {
+  await audio.unlock();
+  await audio.loadChime();
 });
-(document.getElementById('focusMins') as HTMLInputElement).addEventListener('change', (e)=>{
+$('#testChimeBtn')?.addEventListener('click', () => audio.playChime());
+
+$('#hardResetBtn')?.addEventListener('click', () => {
+  if (confirm('Wipe all progress?')) { hardReset(); location.reload(); }
+});
+
+(document.getElementById('focusMins') as HTMLInputElement).addEventListener('change', (e) => {
   const v = Number((e.target as HTMLInputElement).value);
   fsm.setDurations(v, Number((document.getElementById('breakMins') as HTMLInputElement).value));
   persist();
 });
-(document.getElementById('breakMins') as HTMLInputElement).addEventListener('change', (e)=>{
+(document.getElementById('breakMins') as HTMLInputElement).addEventListener('change', (e) => {
   const v = Number((e.target as HTMLInputElement).value);
   fsm.setDurations(Number((document.getElementById('focusMins') as HTMLInputElement).value), v);
   persist();
 });
-(document.getElementById('reducedMotion') as HTMLInputElement).addEventListener('change', (e)=>{
+(document.getElementById('reducedMotion') as HTMLInputElement).addEventListener('change', (e) => {
   const v = (e.target as HTMLInputElement).checked;
-  game.setReducedMotion(v); persist();
+  game.setReducedMotion(v);
+  // When reduced motion is on during Focus, keep intensity extra calm
+  if (fsm.state === 'Focus') game.setIntensity(v ? 'calm' : 'calm');
+  persist();
 });
 
+// -----------------------------
 // FSM hooks
-fsm.onTick = (left)=>{
-  setText('timerDisplay', fmtTime(Math.max(0,left)));
+// -----------------------------
+fsm.onTick = (left) => {
+  setText('timerDisplay', fmtTime(Math.max(0, left)));
   updateHUD();
 };
-fsm.onTransition = (to)=>{
+
+fsm.onTransition = (to) => {
   setText('stateChip', to);
   setText('modePill', to);
 
-  // Pause gate & intensity: calm during Focus, lively otherwise
-  game.paused = (to==='Paused');
-  if (to === 'Focus') game.setIntensity('calm');
-  else game.setIntensity('active');
+  // Pause gate: halts game updates
+  game.paused = (to === 'Paused');
 
-  // Shop visibility rules
-  if(to==='Break'){
+  // Calm visuals on Focus, lively on Break/Idle
+  if (to === 'Focus') game.setIntensity('calm'); else game.setIntensity('active');
+
+  // Trivia and Shop visibility
+  if (to === 'Break') {
+    showRandomFact();
     shop.open(points);
-  } else if(to==='Paused' && Balance.allowShopWhilePaused){
+  } else if (to === 'Paused' && Balance.allowShopWhilePaused) {
     shop.open(points);
+    hideTrivia();
   } else {
     shop.close();
+    hideTrivia();
   }
+
   updateHUD();
   persist();
 };
-fsm.onFocusComplete = ()=>{
-  // award points
+
+fsm.onFocusComplete = () => {
+  // award points (use FSM helper if available)
   const focusMin = Number((document.getElementById('focusMins') as HTMLInputElement).value);
-  const award = PomodoroFSM.computePointsAward(focusMin*60, fsm.streak);
+  const award = PomodoroFSM.computePointsAward
+    ? PomodoroFSM.computePointsAward(focusMin * 60, fsm.streak)
+    : Math.max(1, Math.round(focusMin)); // fallback
   points += award;
   setText('gritBadge', `Points: ${points}`);
   audio.playChime();
   buzz(20);
 };
 
-function updateHUD(){
+// -----------------------------
+// HUD
+// -----------------------------
+function updateHUD() {
   setText('gritBadge', `Points: ${Math.floor(points)}`);
   setText('goldBadge', `Gold: ${Math.floor(gold)}`);
   setText('streakChip', `Streak: ${fsm.streak}`);
   const hpPct = Math.max(0, Math.min(1, game.playerHP / game.playerMax));
-  (document.getElementById('hpFill') as HTMLElement).style.width = `${hpPct*100}%`;
+  (document.getElementById('hpFill') as HTMLElement).style.width = `${hpPct * 100}%`;
 }
 
+// -----------------------------
 // Game + timer loop
+// -----------------------------
 let lastT = nowMs();
-function frame(){
+function frame() {
   const t = nowMs();
-  const dt = (t - lastT)/1000;
+  const dt = (t - lastT) / 1000; // seconds
   lastT = t;
 
-  // Fixed-step update/draw
-  game.loop.step(dt, (fixed)=>{ game.update(fixed); });
+  // Fixed-step update/draw (game has its own accumulator)
+  game.loop.step(dt, (fixed) => { game.update(fixed); });
   game.draw();
 
-  // Tick timer at 1-second resolution
-  rafLoop.step(dt, ()=>{ if(fsm.state==='Focus' || fsm.state==='Break'){ fsm.tick(1); } });
+  // Tick Pomodoro at 1‑second cadence
+  rafLoop.step(dt, () => {
+    if (fsm.state === 'Focus' || fsm.state === 'Break') fsm.tick(1);
+  });
 
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
+// -----------------------------
 // PWA SW (Pages-safe path)
-if('serviceWorker' in navigator){
+// -----------------------------
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker
     .register(new URL('sw.js', import.meta.env.BASE_URL))
-    .catch(()=>{});
+    .catch(() => {});
 }
 
+// -----------------------------
 // Touch input: drag to move player horizontally
-canvas.addEventListener('pointerdown', onDrag);
-canvas.addEventListener('pointermove', onDrag);
-function onDrag(e: PointerEvent){
+// -----------------------------
+canvas.addEventListener('pointerdown', onDrag, { passive: true });
+canvas.addEventListener('pointermove', onDrag, { passive: true });
+function onDrag(e: PointerEvent) {
   const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (canvas.width/rect.width);
-  game.state.player.x = Math.max(12, Math.min(canvas.width-12, x));
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+  game.state.player.x = Math.max(12, Math.min(canvas.width - 12, x));
 }
