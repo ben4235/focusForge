@@ -71,3 +71,15 @@ canvas#game{
 
 .settings{ display:flex; justify-content:center; gap:8px; align-items:center; color:var(--muted); }
 .tiny{ font-size:12px; opacity:0.7; }
+
+/* Trivia box styles */
+.trivia {
+  background:#1e2b4f;
+  border:1px solid #24315f;
+  border-radius:12px;
+  padding:10px;
+  color:var(--muted);
+  font-size:14px;
+  max-width:480px;
+  margin:0 auto;
+}
