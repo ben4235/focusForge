@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f1220" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="icon" href="/icons/icon-192.png" />
+  <link rel="manifest" href="%BASE_URL%manifest.json" />
+  <link rel="icon" href="%BASE_URL%icons/icon-192.png" />
   <title>Focus Forge</title>
-  <link rel="stylesheet" href="/style.css" />
+  <!-- style.css is imported by main.ts so Vite rewrites paths for Pages -->
 </head>
 <body>
   <header>
@@ -46,7 +46,7 @@
         </label>
         <label class="toggle">
           <input id="reducedMotion" type="checkbox">
-          <span>Reduced motion</span>
+          <span>Reduced motion (less shake/VFX)</span>
         </label>
       </div>
       <div id="soundGate" class="sound-gate">
