@@ -83,3 +83,16 @@ canvas#game{
   max-width:480px;
   margin:0 auto;
 }
+/* --- Mobile lock & safe-area --- */
+html, body { height: 100%; margin: 0; overflow: hidden; }
+main { min-height: 100svh; padding-bottom: env(safe-area-inset-bottom); }
+
+/* Canvas fills the view without causing scroll */
+#game, #gameCanvas, canvas {
+  display: block;
+  width: 100vw;
+  height: calc(100svh - 150px); /* leaves room for HUD/buttons */
+  max-height: 100svh;
+  touch-action: manipulation;
+}
+
