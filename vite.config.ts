@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
-// Works for BOTH user sites (ben4235.github.io) and project sites
-const repo = process.env.REPO || '';              // set by Actions
+// Works for both user sites (username.github.io) and project sites
+const repo = process.env.REPO || '';
 const isPages = !!process.env.GITHUB_PAGES;
 const base = isPages
   ? (repo && repo.endsWith('.github.io') ? '/' : `/${repo}/`)
@@ -9,5 +9,7 @@ const base = isPages
 
 export default defineConfig({
   base,
-  build: { target: 'es2020' }
-})
+  build: {
+    target: 'es2020'
+  }
+});
