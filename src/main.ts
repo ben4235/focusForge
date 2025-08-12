@@ -1,3 +1,4 @@
+import '../style.css';
 import { $, setText, fmtTime } from './ui/dom';
 import { PomodoroFSM } from './fsm/PomodoroFSM';
 import { Game } from './game/Game';
